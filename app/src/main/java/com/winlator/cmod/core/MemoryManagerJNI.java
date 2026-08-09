@@ -1,10 +1,10 @@
 package com.winlator.cmod.core;
 
-import android.app.ActivityManager;
-import android.content.Context;
 import android.os.Debug;
 import android.os.Process;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import java.util.Locale;
 
