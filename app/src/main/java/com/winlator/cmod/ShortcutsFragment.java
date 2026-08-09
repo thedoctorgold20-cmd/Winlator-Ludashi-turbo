@@ -36,7 +36,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.documentfile.provider.DocumentFile;
-import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -54,11 +53,12 @@ import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
 import com.winlator.cmod.core.ExeIconExtractor;
 import com.winlator.cmod.core.FileUtils;
-import com.winlator.cmod.contents.ContentsManager;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
 import okhttp3.OkHttpClient;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -80,317 +80,825 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 
-public class ShortcutsFragment extends Fragment {
+public class ShortcutsFragment extends androidx.fragment.app.Fragment {
+
     private static final String TAG = "ShortcutsFragment";
-    private static final String STEAMGRID_BASE_URL = "https://www.steamgriddb.com/api/v2/";
-    private static String STEAMGRID_API_KEY = "0324c52513634547a7b32d6d323635d0";
+
+    private static final String STEAMGRID_BASE_URL =
+            "https://www.steamgriddb.com/api/v2/";
+
+    private static String STEAMGRID_API_KEY =
+            "0324c52513634547a7b32d6d323635d0";
 
     private RecyclerView recyclerView;
     private TextView emptyTextView;
     private ContainerManager manager;
     private SharedPreferences preferences;
-    
+
     private boolean isGridView = false;
+
     private DividerItemDecoration dividerItemDecoration;
 
     private Shortcut shortcutForIconUpdate;
+
     private ActivityResultLauncher<String> iconPickerLauncher;
     private ActivityResultLauncher<String> contentPickerLauncher;
-    private com.winlator.cmod.core.Callback<Uri> pendingContentPickerCallback;
+
+    private com.winlator.cmod.core.Callback<Uri>
+            pendingContentPickerCallback;
 
     public static final int IMPORT_SHORTCUT = 1005;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setHasOptionsMenu(true);
 
-        iconPickerLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
-            if (uri != null && shortcutForIconUpdate != null) {
-                updateShortcutIcon(uri, shortcutForIconUpdate);
-            }
-        });
-        contentPickerLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
-            com.winlator.cmod.core.Callback<Uri> cb = pendingContentPickerCallback;
-            pendingContentPickerCallback = null;
-            if (cb != null) cb.call(uri);
-        });
+        iconPickerLauncher =
+                registerForActivityResult(
+                        new ActivityResultContracts.GetContent(),
+                        uri -> {
+                            if (uri != null &&
+                                    shortcutForIconUpdate != null) {
+
+                                updateShortcutIcon(
+                                        uri,
+                                        shortcutForIconUpdate
+                                );
+                            }
+                        }
+                );
+
+        contentPickerLauncher =
+                registerForActivityResult(
+                        new ActivityResultContracts.GetContent(),
+                        uri -> {
+
+                            com.winlator.cmod.core.Callback<Uri> callback =
+                                    pendingContentPickerCallback;
+
+                            pendingContentPickerCallback = null;
+
+                            if (callback != null) {
+                                callback.call(uri);
+                            }
+                        }
+                );
     }
 
-    public void pickContentArchive(com.winlator.cmod.core.Callback<Uri> callback) {
+    public void pickContentArchive(
+            com.winlator.cmod.core.Callback<Uri> callback) {
+
         pendingContentPickerCallback = callback;
+
         contentPickerLauncher.launch("*/*");
     }
 
     @Override
-    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+    public void onConfigurationChanged(
+            @NonNull Configuration newConfig) {
+
         super.onConfigurationChanged(newConfig);
-        if (recyclerView != null) updateLayoutManager();
+
+        if (recyclerView != null) {
+            updateLayoutManager();
+        }
     }
 
     @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+    public void onViewCreated(
+            @NonNull View view,
+            @Nullable Bundle savedInstanceState) {
+
         super.onViewCreated(view, savedInstanceState);
-        manager = new ContainerManager(getContext());
+
+        manager = new ContainerManager(requireContext());
+
         loadShortcutsList();
-        if (getActivity() != null && ((AppCompatActivity) getActivity()).getSupportActionBar() != null) {
-            ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.shortcuts);
+
+        if (getActivity() != null) {
+
+            AppCompatActivity activity =
+                    (AppCompatActivity) getActivity();
+
+            if (activity.getSupportActionBar() != null) {
+                activity.getSupportActionBar()
+                        .setTitle(R.string.shortcuts);
+            }
         }
     }
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        FrameLayout frameLayout = (FrameLayout)inflater.inflate(R.layout.shortcuts_fragment, container, false);
-        recyclerView = frameLayout.findViewById(R.id.RecyclerView);
-        emptyTextView = frameLayout.findViewById(R.id.TVEmptyText);
+    public View onCreateView(
+            @NonNull LayoutInflater inflater,
+            @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
 
-        preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        isGridView = preferences.getBoolean("shortcuts_grid_view", true);
+        FrameLayout layout =
+                (FrameLayout) inflater.inflate(
+                        R.layout.shortcuts_fragment,
+                        container,
+                        false
+                );
+
+        recyclerView =
+                layout.findViewById(R.id.RecyclerView);
+
+        emptyTextView =
+                layout.findViewById(R.id.TVEmptyText);
+
+        preferences =
+                PreferenceManager
+                        .getDefaultSharedPreferences(requireContext());
+
+        isGridView =
+                preferences.getBoolean(
+                        "shortcuts_grid_view",
+                        true
+                );
 
         updateLayoutManager();
 
-        return frameLayout;
+        return layout;
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+    public void onCreateOptionsMenu(
+            @NonNull Menu menu,
+            @NonNull MenuInflater inflater) {
+
         super.onCreateOptionsMenu(menu, inflater);
-        
-        MenuItem item = menu.add(0, 1, 0, isGridView ? "List View" : "Grid View");
-        item.setIcon(isGridView ? android.R.drawable.ic_menu_agenda : android.R.drawable.ic_menu_gallery);
-        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+
+        MenuItem item =
+                menu.add(
+                        0,
+                        1,
+                        0,
+                        isGridView
+                                ? "List View"
+                                : "Grid View"
+                );
+
+        item.setIcon(
+                isGridView
+                        ? android.R.drawable.ic_menu_agenda
+                        : android.R.drawable.ic_menu_gallery
+        );
+
+        item.setShowAsAction(
+                MenuItem.SHOW_AS_ACTION_ALWAYS
+        );
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+    public boolean onOptionsItemSelected(
+            @NonNull MenuItem item) {
+
         if (item.getItemId() == 1) {
+
             isGridView = !isGridView;
-            preferences.edit().putBoolean("shortcuts_grid_view", isGridView).apply();
+
+            preferences.edit()
+                    .putBoolean(
+                            "shortcuts_grid_view",
+                            isGridView
+                    )
+                    .apply();
+
             updateLayoutManager();
-            getActivity().invalidateOptionsMenu(); 
+
+            requireActivity().invalidateOptionsMenu();
+
             return true;
         }
+
         return super.onOptionsItemSelected(item);
     }
-    private void fetchCoverFromSteamGrid(Shortcut shortcut, File destFile,
-                                          Runnable onSuccess, Runnable onFail) {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-        if (prefs.getBoolean("enable_custom_api_key", false)) {
-            String custom = prefs.getString("custom_api_key", "");
-            if (custom != null && !custom.isEmpty()) STEAMGRID_API_KEY = custom;
+
+    private void fetchCoverFromSteamGrid(
+            Shortcut shortcut,
+            File destination,
+            Runnable onSuccess,
+            Runnable onFail) {
+
+        SharedPreferences prefs =
+                PreferenceManager
+                        .getDefaultSharedPreferences(
+                                requireContext()
+                        );
+
+        if (prefs.getBoolean(
+                "enable_custom_api_key",
+                false)) {
+
+            String custom =
+                    prefs.getString(
+                            "custom_api_key",
+                            ""
+                    );
+
+            if (custom != null &&
+                    !custom.isEmpty()) {
+
+                STEAMGRID_API_KEY = custom;
+            }
         }
 
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(STEAMGRID_BASE_URL)
-                .client(new OkHttpClient())
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+        Retrofit retrofit =
+                new Retrofit.Builder()
+                        .baseUrl(STEAMGRID_BASE_URL)
+                        .client(new OkHttpClient())
+                        .addConverterFactory(
+                                GsonConverterFactory.create()
+                        )
+                        .build();
 
-        SteamGridDBApi api = retrofit.create(SteamGridDBApi.class);
-        Call<SteamGridSearchResponse> call = api.searchGame("Bearer " + STEAMGRID_API_KEY, shortcut.name);
+        SteamGridDBApi api =
+                retrofit.create(
+                        SteamGridDBApi.class
+                );
 
-        call.enqueue(new Callback<SteamGridSearchResponse>() {
-            @Override
-            public void onResponse(Call<SteamGridSearchResponse> call, Response<SteamGridSearchResponse> response) {
-                if (response.isSuccessful() && response.body() != null
-                        && response.body().data != null && !response.body().data.isEmpty()) {
-                    int gameId = response.body().data.get(0).id;
-                    fetchSteamGridCovers(gameId, destFile, onSuccess, onFail);
-                } else {
-                    Log.d(TAG, "SteamGridDB: sem resultado para '" + shortcut.name + "', usando fallback");
-                    if (onFail != null) onFail.run();
+        Call<SteamGridSearchResponse> call =
+                api.searchGame(
+                        "Bearer " + STEAMGRID_API_KEY,
+                        shortcut.name
+                );
+
+        call.enqueue(
+                new Callback<SteamGridSearchResponse>() {
+
+                    @Override
+                    public void onResponse(
+                            Call<SteamGridSearchResponse> call,
+                            Response<SteamGridSearchResponse> response) {
+
+                        if (response.isSuccessful()
+                                && response.body() != null
+                                && response.body().data != null
+                                && !response.body().data.isEmpty()) {
+
+                            int gameId =
+                                    response.body()
+                                            .data
+                                            .get(0)
+                                            .id;
+
+                            fetchSteamGridCovers(
+                                    gameId,
+                                    destination,
+                                    onSuccess,
+                                    onFail
+                            );
+
+                        } else {
+
+                            if (onFail != null) {
+                                onFail.run();
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(
+                            Call<SteamGridSearchResponse> call,
+                            Throwable t) {
+
+                        Log.e(
+                                TAG,
+                                "SteamGridDB search error",
+                                t
+                        );
+
+                        if (onFail != null) {
+                            onFail.run();
+                        }
+                    }
                 }
-            }
-
-            @Override
-            public void onFailure(Call<SteamGridSearchResponse> call, Throwable t) {
-                Log.e(TAG, "SteamGridDB search falhou: " + t.getMessage());
-                if (onFail != null) onFail.run();
-            }
-        });
+        );
     }
 
-    private void fetchSteamGridCovers(int gameId, File destFile,
-                                       Runnable onSuccess, Runnable onFail) {
-        Gson gson = new GsonBuilder()
-                .registerTypeAdapter(SteamGridGridsResponse.class, new SteamGridGridsResponseDeserializer())
-                .create();
+    private void fetchSteamGridCovers(
+            int gameId,
+            File destination,
+            Runnable onSuccess,
+            Runnable onFail) {
 
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(STEAMGRID_BASE_URL)
-                .client(new OkHttpClient())
-                .addConverterFactory(GsonConverterFactory.create(gson))
-                .build();
+        Gson gson =
+                new GsonBuilder()
+                        .registerTypeAdapter(
+                                SteamGridGridsResponse.class,
+                                new SteamGridGridsResponseDeserializer()
+                        )
+                        .create();
 
-        SteamGridDBApi api = retrofit.create(SteamGridDBApi.class);
-        Call<SteamGridGridsResponse> gridsCall = api.getGridsByGameId(
-                "Bearer " + STEAMGRID_API_KEY, gameId, "alternate", "600x900", "static");
+        Retrofit retrofit =
+                new Retrofit.Builder()
+                        .baseUrl(STEAMGRID_BASE_URL)
+                        .client(new OkHttpClient())
+                        .addConverterFactory(
+                                GsonConverterFactory.create(gson)
+                        )
+                        .build();
 
-        gridsCall.enqueue(new Callback<SteamGridGridsResponse>() {
-            @Override
-            public void onResponse(Call<SteamGridGridsResponse> call, Response<SteamGridGridsResponse> response) {
-                if (response.isSuccessful() && response.body() != null
-                        && !response.body().data.isEmpty()) {
-                    String url = response.body().data.get(0).url;
-                    downloadAndSaveCover(url, destFile, onSuccess, onFail);
-                } else {
-                    Log.d(TAG, "SteamGridDB: nenhum grid encontrado para gameId=" + gameId);
-                    if (onFail != null) onFail.run();
+        SteamGridDBApi api =
+                retrofit.create(
+                        SteamGridDBApi.class
+                );
+
+        Call<SteamGridGridsResponse> call =
+                api.getGridsByGameId(
+                        "Bearer " + STEAMGRID_API_KEY,
+                        gameId,
+                        "alternate",
+                        "600x900",
+                        "static"
+                );
+
+        call.enqueue(
+                new Callback<SteamGridGridsResponse>() {
+
+                    @Override
+                    public void onResponse(
+                            Call<SteamGridGridsResponse> call,
+                            Response<SteamGridGridsResponse> response) {
+
+                        if (response.isSuccessful()
+                                && response.body() != null
+                                && response.body().data != null
+                                && !response.body().data.isEmpty()) {
+
+                            String url =
+                                    response.body()
+                                            .data
+                                            .get(0)
+                                            .url;
+
+                            downloadAndSaveCover(
+                                    url,
+                                    destination,
+                                    onSuccess,
+                                    onFail
+                            );
+
+                        } else if (onFail != null) {
+
+                            onFail.run();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(
+                            Call<SteamGridGridsResponse> call,
+                            Throwable t) {
+
+                        Log.e(
+                                TAG,
+                                "SteamGridDB grids error",
+                                t
+                        );
+
+                        if (onFail != null) {
+                            onFail.run();
+                        }
+                    }
                 }
-            }
-
-            @Override
-            public void onFailure(Call<SteamGridGridsResponse> call, Throwable t) {
-                Log.e(TAG, "SteamGridDB grids falhou: " + t.getMessage());
-                if (onFail != null) onFail.run();
-            }
-        });
+        );
     }
 
-    private void downloadAndSaveCover(String url, File destFile,
-                                       Runnable onSuccess, Runnable onFail) {
-        Executors.newSingleThreadExecutor().execute(() -> {
+    private void downloadAndSaveCover(
+            String url,
+            File destination,
+            Runnable onSuccess,
+            Runnable onFail) {
+
+        Executors
+                .newSingleThreadExecutor()
+                .execute(() -> {
+
+                    HttpURLConnection connection = null;
+
+                    try {
+
+                        connection =
+                                (HttpURLConnection)
+                                        new URL(url)
+                                                .openConnection();
+
+                        connection.setConnectTimeout(10000);
+                        connection.setReadTimeout(15000);
+                        connection.connect();
+
+                        Bitmap bitmap =
+                                BitmapFactory.decodeStream(
+                                        connection.getInputStream()
+                                );
+
+                        if (bitmap == null) {
+
+                            if (onFail != null) {
+                                onFail.run();
+                            }
+
+                            return;
+                        }
+
+                        File parent =
+                                destination.getParentFile();
+
+                        if (parent != null) {
+                            parent.mkdirs();
+                        }
+
+                        try (FileOutputStream output =
+                                     new FileOutputStream(destination)) {
+
+                            bitmap.compress(
+                                    Bitmap.CompressFormat.PNG,
+                                    100,
+                                    output
+                            );
+                        }
+
+                        bitmap.recycle();
+
+                        if (getActivity() != null) {
+
+                            getActivity().runOnUiThread(
+                                    () -> {
+
+                                        if (onSuccess != null) {
+                                            onSuccess.run();
+                                        }
+                                    }
+                            );
+                        }
+
+                    } catch (Exception e) {
+
+                        Log.e(
+                                TAG,
+                                "Cover download error",
+                                e
+                        );
+
+                        if (onFail != null) {
+                            onFail.run();
+                        }
+
+                    } finally {
+
+                        if (connection != null) {
+                            connection.disconnect();
+                        }
+                    }
+                });
+    }
+
+    private File getImagesDir(boolean cover) {
+
+        File directory =
+                new File(
+                        Environment
+                                .getExternalStorageDirectory(),
+                        cover
+                                ? "Winlator/covers"
+                                : "Winlator/icons"
+                );
+
+        if (!directory.exists()) {
+            directory.mkdirs();
+        }
+
+        File noMedia =
+                new File(directory, ".nomedia");
+
+        if (!noMedia.exists()) {
+
             try {
-                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.connect();
-                Bitmap bmp = BitmapFactory.decodeStream(conn.getInputStream());
-                if (bmp == null) { if (onFail != null) onFail.run(); return; }
-
-                if (destFile.getParentFile() != null) destFile.getParentFile().mkdirs();
-
-                try (FileOutputStream fos = new FileOutputStream(destFile)) {
-                    bmp.compress(Bitmap.CompressFormat.PNG, 100, fos);
-                }
-                bmp.recycle();
-                Log.d(TAG, "SteamGridDB cover salvo: " + destFile.getAbsolutePath());
-                if (onSuccess != null) onSuccess.run();
-            } catch (Exception e) {
-                Log.e(TAG, "Falha ao baixar cover do SteamGridDB: " + e.getMessage());
-                if (onFail != null) onFail.run();
+                noMedia.createNewFile();
+            } catch (IOException ignored) {
             }
-        });
-    }
-
-    private File getImagesDir(boolean isCover) {
-        File targetDir = new File(Environment.getExternalStorageDirectory(), isCover ? "Winlator/covers" : "Winlator/icons");
-        if (!targetDir.exists()) targetDir.mkdirs();
-        
-        File nomedia = new File(targetDir, ".nomedia");
-        if (!nomedia.exists()) {
-            try { nomedia.createNewFile(); } catch (IOException e) {}
         }
-        return targetDir;
+
+        return directory;
     }
 
     private void updateLayoutManager() {
-        if (isGridView) {
-            int orientation = getResources().getConfiguration().orientation;
-            boolean isLandscape = (orientation == Configuration.ORIENTATION_LANDSCAPE);
-            int spanCount = isLandscape ? 3 : 2;
 
-            recyclerView.setLayoutManager(new GridLayoutManager(getContext(), spanCount)); 
+        if (recyclerView == null) {
+            return;
+        }
+
+        if (isGridView) {
+
+            int orientation =
+                    getResources()
+                            .getConfiguration()
+                            .orientation;
+
+            int span =
+                    orientation ==
+                            Configuration.ORIENTATION_LANDSCAPE
+                            ? 3
+                            : 2;
+
+            recyclerView.setLayoutManager(
+                    new GridLayoutManager(
+                            requireContext(),
+                            span
+                    )
+            );
+
             if (dividerItemDecoration != null) {
-                recyclerView.removeItemDecoration(dividerItemDecoration);
+
+                recyclerView.removeItemDecoration(
+                        dividerItemDecoration
+                );
+
                 dividerItemDecoration = null;
             }
+
         } else {
-            recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+
+            recyclerView.setLayoutManager(
+                    new LinearLayoutManager(
+                            requireContext()
+                    )
+            );
+
             if (dividerItemDecoration == null) {
-                dividerItemDecoration = new DividerItemDecoration(getContext(), DividerItemDecoration.VERTICAL);
-                recyclerView.addItemDecoration(dividerItemDecoration);
+
+                dividerItemDecoration =
+                        new DividerItemDecoration(
+                                requireContext(),
+                                DividerItemDecoration.VERTICAL
+                        );
+
+                recyclerView.addItemDecoration(
+                        dividerItemDecoration
+                );
             }
         }
-        
-        if (recyclerView.getAdapter() != null) recyclerView.setAdapter(recyclerView.getAdapter());
+
+        if (recyclerView.getAdapter() != null) {
+
+            recyclerView.getAdapter()
+                    .notifyDataSetChanged();
+        }
     }
 
     public void loadShortcutsList() {
-        ArrayList<Shortcut> shortcuts = manager.loadShortcuts();
-        if (shortcuts != null) {
-            shortcuts.removeIf(shortcut -> shortcut == null || shortcut.file == null || shortcut.file.getName().isEmpty());
-            
-            Bitmap defaultIcon = BitmapFactory.decodeResource(getResources(), R.drawable.icon_wine);
-            for (Shortcut shortcut : shortcuts) {
-                if (shortcut.icon == null) shortcut.icon = defaultIcon;
-            }
-            
-            recyclerView.setAdapter(new ShortcutsAdapter(shortcuts));
-            if (shortcuts.isEmpty()) emptyTextView.setVisibility(View.VISIBLE);
-            else emptyTextView.setVisibility(View.GONE);
+
+        if (manager == null ||
+                recyclerView == null) {
+            return;
         }
+
+        ArrayList<Shortcut> shortcuts =
+                manager.loadShortcuts();
+
+        if (shortcuts == null) {
+            shortcuts = new ArrayList<>();
+        }
+
+        shortcuts.removeIf(
+                shortcut ->
+                        shortcut == null
+                                || shortcut.file == null
+                                || shortcut.file.getName().isEmpty()
+        );
+
+        Bitmap defaultIcon =
+                BitmapFactory.decodeResource(
+                        getResources(),
+                        R.drawable.icon_wine
+                );
+
+        for (Shortcut shortcut : shortcuts) {
+
+            if (shortcut.icon == null) {
+                shortcut.icon = defaultIcon;
+            }
+        }
+
+        recyclerView.setAdapter(
+                new ShortcutsAdapter(shortcuts)
+        );
+
+        emptyTextView.setVisibility(
+                shortcuts.isEmpty()
+                        ? View.VISIBLE
+                        : View.GONE
+        );
     }
 
-    private void updateShortcutIcon(Uri sourceUri, Shortcut shortcut) {
-        try {
-            File targetDir = getImagesDir(false);
-            String baseName = FileUtils.getBasename(shortcut.file.getPath());
-            File destFile = new File(targetDir, baseName + ".user.png");
+    private void updateShortcutIcon(
+            Uri sourceUri,
+            Shortcut shortcut) {
 
-            try (InputStream is = getContext().getContentResolver().openInputStream(sourceUri);
-                 OutputStream os = new FileOutputStream(destFile)) {
-                byte[] buffer = new byte[1024];
+        try {
+
+            File directory =
+                    getImagesDir(false);
+
+            String baseName =
+                    FileUtils.getBasename(
+                            shortcut.file.getPath()
+                    );
+
+            File destination =
+                    new File(
+                            directory,
+                            baseName + ".user.png"
+                    );
+
+            try (
+                    InputStream input =
+                            requireContext()
+                                    .getContentResolver()
+                                    .openInputStream(sourceUri);
+
+                    OutputStream output =
+                            new FileOutputStream(destination)
+            ) {
+
+                byte[] buffer = new byte[8192];
+
                 int length;
-                while ((length = is.read(buffer)) > 0) os.write(buffer, 0, length);
+
+                while ((length =
+                        input.read(buffer)) > 0) {
+
+                    output.write(
+                            buffer,
+                            0,
+                            length
+                    );
+                }
             }
 
-            Toast.makeText(getContext(), "Icon updated!", Toast.LENGTH_SHORT).show();
-            if (recyclerView.getAdapter() != null) recyclerView.getAdapter().notifyDataSetChanged();
+            Toast.makeText(
+                    requireContext(),
+                    "Icon updated!",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            if (recyclerView.getAdapter() != null) {
+                recyclerView.getAdapter()
+                        .notifyDataSetChanged();
+            }
 
         } catch (Exception e) {
-            Toast.makeText(getContext(), "Error saving icon", Toast.LENGTH_SHORT).show();
+
+            Log.e(
+                    TAG,
+                    "Icon update error",
+                    e
+            );
+
+            Toast.makeText(
+                    requireContext(),
+                    "Error saving icon",
+                    Toast.LENGTH_SHORT
+            ).show();
         }
     }
 
-    
     private File resolveExeFile(Shortcut item) {
-        if (item.path == null || item.path.isEmpty()) return null;
 
-        String path = item.path.replace("\\", "/").trim();
+        if (item == null ||
+                item.path == null ||
+                item.path.isEmpty()) {
 
-        if (path.startsWith("\"") && path.endsWith("\""))
-            path = path.substring(1, path.length() - 1);
-
-        if (path.startsWith("/")) {
-            File f = new File(path);
-            if (f.exists()) return f;
+            return null;
         }
 
-        if (path.length() >= 3 && path.charAt(1) == ':' && path.charAt(2) == '/') {
-            String drive    = path.substring(0, 1).toLowerCase();
-            String relative = path.substring(3);
+        String path =
+                item.path
+                        .replace("\\", "/")
+                        .trim();
+
+        if (path.startsWith("\"") &&
+                path.endsWith("\"")) {
+
+            path =
+                    path.substring(
+                            1,
+                            path.length() - 1
+                    );
+        }
+
+        if (path.startsWith("/")) {
+
+            File file = new File(path);
+
+            if (file.exists()) {
+                return file;
+            }
+        }
+
+        if (path.length() >= 3 &&
+                path.charAt(1) == ':' &&
+                path.charAt(2) == '/') {
+
+            String drive =
+                    path.substring(0, 1)
+                            .toLowerCase();
+
+            String relative =
+                    path.substring(3);
 
             if (item.container != null) {
-                for (String[] entry : item.container.drivesIterator()) {
-                    if (entry == null || entry.length < 2 || entry[0] == null || entry[1] == null) continue;
-                    if (entry[0].replace(":", "").trim().equalsIgnoreCase(drive)) {
-                        File f = new File(entry[1], relative);
-                        if (f.exists()) return f;
+
+                for (String[] entry :
+                        item.container.drivesIterator()) {
+
+                    if (entry == null ||
+                            entry.length < 2 ||
+                            entry[0] == null ||
+                            entry[1] == null) {
+
+                        continue;
+                    }
+
+                    if (entry[0]
+                            .replace(":", "")
+                            .trim()
+                            .equalsIgnoreCase(drive)) {
+
+                        File file =
+                                new File(
+                                        entry[1],
+                                        relative
+                                );
+
+                        if (file.exists()) {
+                            return file;
+                        }
                     }
                 }
             }
 
-            switch (drive) {
-                case "c": {
-                    File root = item.container != null ? item.container.getRootDir() : null;
-                    if (root != null) {
-                        File f = new File(root, ".wine/drive_c/" + relative);
-                        if (f.exists()) return f;
+            if (drive.equals("c")) {
+
+                File root =
+                        item.container != null
+                                ? item.container.getRootDir()
+                                : null;
+
+                if (root != null) {
+
+                    File file =
+                            new File(
+                                    root,
+                                    ".wine/drive_c/"
+                                            + relative
+                            );
+
+                    if (file.exists()) {
+                        return file;
                     }
-                    break;
                 }
-                case "d": {
-                    File f = new File(Environment.getExternalStoragePublicDirectory(
-                            Environment.DIRECTORY_DOWNLOADS), relative);
-                    if (f.exists()) return f;
-                    f = new File(Environment.getExternalStorageDirectory(), relative);
-                    if (f.exists()) return f;
-                    break;
+            }
+
+            if (drive.equals("d")) {
+
+                File downloads =
+                        new File(
+                                Environment
+                                        .getExternalStoragePublicDirectory(
+                                                Environment.DIRECTORY_DOWNLOADS
+                                        ),
+                                relative
+                        );
+
+                if (downloads.exists()) {
+                    return downloads;
                 }
-                case "z": {
-                    File f = new File("/" + relative);
-                    if (f.exists()) return f;
-                    break;
+
+                File external =
+                        new File(
+                                Environment
+                                        .getExternalStorageDirectory(),
+                                relative
+                        );
+
+                if (external.exists()) {
+                    return external;
+                }
+            }
+
+            if (drive.equals("z")) {
+
+                File file =
+                        new File(
+                                "/" + relative
+                        );
+
+                if (file.exists()) {
+                    return file;
                 }
             }
         }
@@ -398,262 +906,687 @@ public class ShortcutsFragment extends Fragment {
         return null;
     }
 
-    private class ShortcutsAdapter extends RecyclerView.Adapter<ShortcutsAdapter.ViewHolder> {
+    private class ShortcutsAdapter
+            extends RecyclerView.Adapter<
+                    ShortcutsAdapter.ViewHolder> {
+
         private final List<Shortcut> data;
 
-        private class ViewHolder extends RecyclerView.ViewHolder {
-            private final View menuButton; 
-            private final ImageView imageView;
-            private final TextView title;
-            private final TextView subtitle;
-            private final View innerArea;
+        private class ViewHolder
+                extends RecyclerView.ViewHolder {
 
-            private ViewHolder(View view) {
+            final View menuButton;
+            final ImageView imageView;
+            final TextView title;
+            final TextView subtitle;
+            final View innerArea;
+
+            ViewHolder(View view) {
+
                 super(view);
-                this.imageView = view.findViewById(R.id.ImageView);
-                this.title = view.findViewById(R.id.TVTitle);
-                this.subtitle = view.findViewById(R.id.TVSubtitle);
-                this.menuButton = view.findViewById(R.id.BTMenu);
-                this.innerArea = view.findViewById(R.id.LLInnerArea);
+
+                imageView =
+                        view.findViewById(
+                                R.id.ImageView
+                        );
+
+                title =
+                        view.findViewById(
+                                R.id.TVTitle
+                        );
+
+                subtitle =
+                        view.findViewById(
+                                R.id.TVSubtitle
+                        );
+
+                menuButton =
+                        view.findViewById(
+                                R.id.BTMenu
+                        );
+
+                innerArea =
+                        view.findViewById(
+                                R.id.LLInnerArea
+                        );
             }
         }
 
-        public ShortcutsAdapter(List<Shortcut> data) { this.data = data; }
+        ShortcutsAdapter(
+                List<Shortcut> data) {
+
+            this.data = data;
+        }
 
         @Override
-        public int getItemViewType(int position) { return isGridView ? 1 : 0; }
+        public int getItemViewType(int position) {
+
+            return isGridView ? 1 : 0;
+        }
 
         @NonNull
         @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            int layoutId = (viewType == 1) ? R.layout.shortcut_grid_item : R.layout.shortcut_list_item;
-            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(layoutId, parent, false));
+        public ViewHolder onCreateViewHolder(
+                @NonNull ViewGroup parent,
+                int viewType) {
+
+            int layout =
+                    viewType == 1
+                            ? R.layout.shortcut_grid_item
+                            : R.layout.shortcut_list_item;
+
+            View view =
+                    LayoutInflater
+                            .from(parent.getContext())
+                            .inflate(
+                                    layout,
+                                    parent,
+                                    false
+                            );
+
+            return new ViewHolder(view);
         }
 
         @Override
-        public void onViewRecycled(@NonNull ViewHolder holder) {
-            if (holder.menuButton != null) holder.menuButton.setOnClickListener(null);
-            holder.innerArea.setOnClickListener(null);
-            holder.innerArea.setOnLongClickListener(null);
-            super.onViewRecycled(holder);
-        }
+        public void onBindViewHolder(
+                @NonNull ViewHolder holder,
+                int position) {
 
-        @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            final Shortcut item = data.get(position);
-            
-            holder.title.setText(item.name);
-            holder.subtitle.setText(item.container.getName());
-            holder.innerArea.setOnClickListener((v) -> runFromShortcut(item));
+            Shortcut shortcut =
+                    data.get(position);
+
+            holder.title.setText(
+                    shortcut.name
+            );
+
+            if (shortcut.container != null) {
+
+                holder.subtitle.setText(
+                        shortcut.container.getName()
+                );
+            } else {
+
+                holder.subtitle.setText("");
+            }
+
+            holder.innerArea.setOnClickListener(
+                    v -> runFromShortcut(shortcut)
+            );
 
             if (isGridView) {
-                
-                holder.innerArea.setOnLongClickListener(v -> {
-                    showListItemMenu(holder.title, item);
-                    return true;
-                });
-                if (holder.menuButton != null) holder.menuButton.setVisibility(View.GONE);
-                boolean isLandscape = getResources().getConfiguration().orientation
-                        == Configuration.ORIENTATION_LANDSCAPE;
-                boolean useCover = true;
 
-                try {
-                    androidx.constraintlayout.widget.ConstraintLayout.LayoutParams imgParams =
-                            (androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
-                                    holder.imageView.getLayoutParams();
-                    imgParams.dimensionRatio = "3:4"; // Cover ratio in both orientations
-                    holder.imageView.setLayoutParams(imgParams);
-                } catch (ClassCastException ignored) {}
+                holder.menuButton.setVisibility(
+                        View.GONE
+                );
 
-                String baseName  = FileUtils.getBasename(item.file.getPath());
-                File userIcon  = new File(getImagesDir(false), baseName + ".user.png");
-                File coverFile = new File(getImagesDir(true),  baseName + ".png");
+                holder.innerArea.setOnLongClickListener(
+                        v -> {
 
-                if (useCover) {
+                            showListItemMenu(
+                                    holder.title,
+                                    shortcut
+                            );
 
-                    if (userIcon.exists()) {
-                        holder.imageView.setImageBitmap(BitmapFactory.decodeFile(userIcon.getPath()));
-                    } else if (coverFile.exists()) {
-                        holder.imageView.setImageBitmap(BitmapFactory.decodeFile(coverFile.getPath()));
-                    } else {
-                        holder.imageView.setImageResource(R.drawable.icon_wine);
-                        fetchCoverFromSteamGrid(item, coverFile,
-                            () -> { // SteamGridDB succeeded
-                                if (getActivity() != null)
-                                    getActivity().runOnUiThread(() -> {
-                                        if (coverFile.exists())
-                                            holder.imageView.setImageBitmap(BitmapFactory.decodeFile(coverFile.getPath()));
-                                    });
-                            },
-                            () -> { // SteamGridDB failed — fall back to EXE icon
-                                File exeFile = resolveExeFile(item);
-                                if (exeFile != null) {
-                                    ExeIconExtractor.extractAsync(exeFile, coverFile, true, () -> {
-                                        if (getActivity() != null)
-                                            getActivity().runOnUiThread(() -> {
-                                                if (coverFile.exists())
-                                                    holder.imageView.setImageBitmap(BitmapFactory.decodeFile(coverFile.getPath()));
-                                            });
-                                    });
-                                }
-                            });
-                    }
-                }
-            } else {
-                holder.innerArea.setOnLongClickListener(null);
-                if (holder.menuButton != null) {
-                    holder.menuButton.setVisibility(View.VISIBLE);
-                    holder.menuButton.setOnClickListener((v) -> showListItemMenu(v, item));
-                }
+                            return true;
+                        }
+                );
 
-                String listBaseName = FileUtils.getBasename(item.file.getPath());
-                File targetDir = getImagesDir(false);
-                File userIcon  = new File(targetDir, listBaseName + ".user.png"); // user-set
-                File autoIcon  = new File(targetDir, listBaseName + ".png");       // auto-extracted
+                String baseName =
+                        FileUtils.getBasename(
+                                shortcut.file.getPath()
+                        );
+
+                File userIcon =
+                        new File(
+                                getImagesDir(false),
+                                baseName + ".user.png"
+                        );
+
+                File cover =
+                        new File(
+                                getImagesDir(true),
+                                baseName + ".png"
+                        );
 
                 if (userIcon.exists()) {
-                    holder.imageView.setImageBitmap(BitmapFactory.decodeFile(userIcon.getPath()));
-                } else if (autoIcon.exists()) {
-                    holder.imageView.setImageBitmap(BitmapFactory.decodeFile(autoIcon.getPath()));
-                } else if (item.icon != null) {
-                    holder.imageView.setImageBitmap(item.icon);
+
+                    holder.imageView.setImageBitmap(
+                            BitmapFactory.decodeFile(
+                                    userIcon.getPath()
+                            )
+                    );
+
+                } else if (cover.exists()) {
+
+                    holder.imageView.setImageBitmap(
+                            BitmapFactory.decodeFile(
+                                    cover.getPath()
+                            )
+                    );
+
                 } else {
-                    holder.imageView.setImageResource(R.drawable.icon_wine);
-                    File exeFile = resolveExeFile(item);
-                    if (exeFile != null) {
-                        ExeIconExtractor.extractAsync(exeFile, autoIcon, false, () -> {
-                            if (getActivity() != null) {
-                                getActivity().runOnUiThread(() -> {
-                                    if (autoIcon.exists()) {
-                                        holder.imageView.setImageBitmap(BitmapFactory.decodeFile(autoIcon.getPath()));
-                                    }
-                                });
+
+                    holder.imageView.setImageResource(
+                            R.drawable.icon_wine
+                    );
+
+                    fetchCoverFromSteamGrid(
+                            shortcut,
+                            cover,
+                            () -> {
+
+                                if (getActivity() != null) {
+
+                                    getActivity().runOnUiThread(
+                                            () -> {
+
+                                                if (cover.exists()) {
+
+                                                    holder.imageView
+                                                            .setImageBitmap(
+                                                                    BitmapFactory.decodeFile(
+                                                                            cover.getPath()
+                                                                    )
+                                                            );
+                                                }
+                                            }
+                                    );
+                                }
+                            },
+                            () -> {
+
+                                File exe =
+                                        resolveExeFile(
+                                                shortcut
+                                        );
+
+                                if (exe != null) {
+
+                                    ExeIconExtractor.extractAsync(
+                                            exe,
+                                            cover,
+                                            true,
+                                            () -> {
+
+                                                if (getActivity() != null) {
+
+                                                    getActivity()
+                                                            .runOnUiThread(
+                                                                    () -> {
+
+                                                                        if (cover.exists()) {
+
+                                                                            holder.imageView
+                                                                                    .setImageBitmap(
+                                                                                            BitmapFactory.decodeFile(
+                                                                                                    cover.getPath()
+                                                                                            )
+                                                                                    );
+                                                                        }
+                                                                    }
+                                                            );
+                                                }
+                                            }
+                                    );
+                                }
                             }
-                        });
-                    }
+                    );
+                }
+
+            } else {
+
+                holder.innerArea
+                        .setOnLongClickListener(null);
+
+                holder.menuButton.setVisibility(
+                        View.VISIBLE
+                );
+
+                holder.menuButton.setOnClickListener(
+                        v -> showListItemMenu(
+                                v,
+                                shortcut
+                        )
+                );
+
+                String baseName =
+                        FileUtils.getBasename(
+                                shortcut.file.getPath()
+                        );
+
+                File icon =
+                        new File(
+                                getImagesDir(false),
+                                baseName + ".png"
+                        );
+
+                File userIcon =
+                        new File(
+                                getImagesDir(false),
+                                baseName + ".user.png"
+                        );
+
+                if (userIcon.exists()) {
+
+                    holder.imageView.setImageBitmap(
+                            BitmapFactory.decodeFile(
+                                    userIcon.getPath()
+                            )
+                    );
+
+                } else if (icon.exists()) {
+
+                    holder.imageView.setImageBitmap(
+                            BitmapFactory.decodeFile(
+                                    icon.getPath()
+                            )
+                    );
+
+                } else if (shortcut.icon != null) {
+
+                    holder.imageView.setImageBitmap(
+                            shortcut.icon
+                    );
+
+                } else {
+
+                    holder.imageView.setImageResource(
+                            R.drawable.icon_wine
+                    );
                 }
             }
         }
 
         @Override
-        public final int getItemCount() { return data.size(); }
+        public int getItemCount() {
 
-        private void showListItemMenu(View anchorView, final Shortcut shortcut) {
-            final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
-
-            listItemMenu.inflate(R.menu.shortcut_popup_menu);
-            listItemMenu.setOnMenuItemClickListener((menuItem) -> {
-                int itemId = menuItem.getItemId();
-                if (itemId == R.id.shortcut_settings) {
-                    (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
-                }
-                else if (itemId == R.id.shortcut_change_icon) {
-                    shortcutForIconUpdate = shortcut;
-                    iconPickerLauncher.launch("image/*");
-                }
-                else if (itemId == R.id.shortcut_remove) {
-                    ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_shortcut, () -> {
-                        boolean fileDeleted = shortcut.file.delete();
-                        try {
-                            String basePath = shortcut.file.getPath().substring(0, shortcut.file.getPath().lastIndexOf("."));
-                            new File(basePath + ".lnk").delete();
-                            new File(basePath + ".bat").delete();
-                        } catch (Exception e) {}
-
-                        if (fileDeleted) {
-                            disableShortcutOnScreen(requireContext(), shortcut);
-                            loadShortcutsList();
-                            Toast.makeText(context, "Shortcut removed.", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }
-                else if (itemId == R.id.shortcut_clone_to_container) {
-                    ContainerManager containerManager = new ContainerManager(context);
-                    ArrayList<Container> containers = containerManager.getContainers();
-                    AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-                    builder.setTitle("Select a container");
-                    String[] containerNames = new String[containers.size()];
-                    for (int i = 0; i < containers.size(); i++) containerNames[i] = containers.get(i).getName();
-                    builder.setItems(containerNames, (dialog, which) -> {
-                        if (shortcut.cloneToContainer(containers.get(which))) {
-                            Toast.makeText(context, "Cloned successfully.", Toast.LENGTH_SHORT).show();
-                            loadShortcutsList(); 
-                        }
-                    });
-                    builder.show();
-                }
-                else if (itemId == R.id.shortcut_add_to_home_screen) {
-                    if (shortcut.getExtra("uuid").equals("")) shortcut.genUUID();
-                    addShortcutToScreen(shortcut);
-                }
-                else if (itemId == R.id.shortcut_export) {
-                    exportShortcut(shortcut);
-                }
-                return true;
-            });
-            listItemMenu.show();
+            return data.size();
         }
 
-        private void runFromShortcut(Shortcut shortcut) {
-            Activity activity = getActivity();
-            if (!XrActivity.isEnabled(getContext())) {
-                Intent intent = new Intent(activity, XServerDisplayActivity.class);
-                intent.putExtra("container_id", shortcut.container.id);
-                intent.putExtra("shortcut_path", shortcut.file.getPath());
-                intent.putExtra("shortcut_name", shortcut.name); 
-                intent.putExtra("disableXinput", shortcut.getExtra("disableXinput", "0")); 
-                intent.putExtra("native_rendering", shortcut.getRendererNative());
-                activity.startActivity(intent);
-            } else XrActivity.openIntent(activity, shortcut.container.id, shortcut.file.getPath());
-        }
+        private void showListItemMenu(
+                View anchor,
+                Shortcut shortcut) {
 
-        private void exportShortcut(Shortcut shortcut) {
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-            String uriString = sharedPreferences.getString("shortcuts_export_path_uri", null);
-            File shortcutsDir;
+            PopupMenu popup =
+                    new PopupMenu(
+                            requireContext(),
+                            anchor
+                    );
 
-            if (uriString != null) {
-                Uri folderUri = Uri.parse(uriString);
-                DocumentFile pickedDir = DocumentFile.fromTreeUri(getContext(), folderUri);
-                if (pickedDir == null || !pickedDir.canWrite()) return;
-                shortcutsDir = new File(FileUtils.getFilePathFromUri(getContext(), folderUri));
-            } else {
-                shortcutsDir = new File(SettingsFragment.DEFAULT_SHORTCUT_EXPORT_PATH);
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.Q) {
+
+                popup.setForceShowIcon(true);
             }
 
-            if (!shortcutsDir.exists() && !shortcutsDir.mkdirs()) return;
-            File exportFile = new File(shortcutsDir, shortcut.file.getName());
-            boolean containerIdFound = false;
+            popup.inflate(
+                    R.menu.shortcut_popup_menu
+            );
+
+            popup.setOnMenuItemClickListener(
+                    menuItem -> {
+
+                        int id =
+                                menuItem.getItemId();
+
+                        if (id ==
+                                R.id.shortcut_settings) {
+
+                            new ShortcutSettingsDialog(
+                                    ShortcutsFragment.this,
+                                    shortcut
+                            ).show();
+
+                        } else if (id ==
+                                R.id.shortcut_change_icon) {
+
+                            shortcutForIconUpdate =
+                                    shortcut;
+
+                            iconPickerLauncher.launch(
+                                    "image/*"
+                            );
+
+                        } else if (id ==
+                                R.id.shortcut_remove) {
+
+                            ContentDialog.confirm(
+                                    requireContext(),
+                                    R.string.do_you_want_to_remove_this_shortcut,
+                                    () -> {
+
+                                        boolean deleted =
+                                                shortcut.file.delete();
+
+                                        if (deleted) {
+
+                                            disableShortcutOnScreen(
+                                                    requireContext(),
+                                                    shortcut
+                                            );
+
+                                            loadShortcutsList();
+
+                                            Toast.makeText(
+                                                    requireContext(),
+                                                    "Shortcut removed.",
+                                                    Toast.LENGTH_SHORT
+                                            ).show();
+                                        }
+                                    }
+                            );
+
+                        } else if (id ==
+                                R.id.shortcut_clone_to_container) {
+
+                            ContainerManager cm =
+                                    new ContainerManager(
+                                            requireContext()
+                                    );
+
+                            ArrayList<Container> containers =
+                                    cm.getContainers();
+
+                            String[] names =
+                                    new String[
+                                            containers.size()
+                                    ];
+
+                            for (int i = 0;
+                                    i < containers.size();
+                                    i++) {
+
+                                names[i] =
+                                        containers
+                                                .get(i)
+                                                .getName();
+                            }
+
+                            new AlertDialog.Builder(
+                                    requireContext()
+                            )
+                                    .setTitle(
+                                            "Select a container"
+                                    )
+                                    .setItems(
+                                            names,
+                                            (dialog, which) -> {
+
+                                                if (shortcut.cloneToContainer(
+                                                        containers.get(which)
+                                                )) {
+
+                                                    loadShortcutsList();
+
+                                                    Toast.makeText(
+                                                            requireContext(),
+                                                            "Cloned successfully.",
+                                                            Toast.LENGTH_SHORT
+                                                    ).show();
+                                                }
+                                            }
+                                    )
+                                    .show();
+
+                        } else if (id ==
+                                R.id.shortcut_add_to_home_screen) {
+
+                            if (shortcut.getExtra("uuid")
+                                    .equals("")) {
+
+                                shortcut.genUUID();
+                            }
+
+                            addShortcutToScreen(
+                                    shortcut
+                            );
+
+                        } else if (id ==
+                                R.id.shortcut_export) {
+
+                            exportShortcut(
+                                    shortcut
+                            );
+                        }
+
+                        return true;
+                    }
+            );
+
+            popup.show();
+        }
+
+        private void runFromShortcut(
+                Shortcut shortcut) {
+
+            Activity activity =
+                    getActivity();
+
+            if (activity == null) {
+                return;
+            }
+
+            if (!XrActivity.isEnabled(
+                    requireContext()
+            )) {
+
+                Intent intent =
+                        new Intent(
+                                activity,
+                                XServerDisplayActivity.class
+                        );
+
+                intent.putExtra(
+                        "container_id",
+                        shortcut.container.id
+                );
+
+                intent.putExtra(
+                        "shortcut_path",
+                        shortcut.file.getPath()
+                );
+
+                intent.putExtra(
+                        "shortcut_name",
+                        shortcut.name
+                );
+
+                intent.putExtra(
+                        "disableXinput",
+                        shortcut.getExtra(
+                                "disableXinput",
+                                "0"
+                        )
+                );
+
+                intent.putExtra(
+                        "native_rendering",
+                        shortcut.getRendererNative()
+                );
+
+                activity.startActivity(intent);
+
+            } else {
+
+                XrActivity.openIntent(
+                        activity,
+                        shortcut.container.id,
+                        shortcut.file.getPath()
+                );
+            }
+        }
+
+        private void exportShortcut(
+                Shortcut shortcut) {
+
+            SharedPreferences prefs =
+                    PreferenceManager
+                            .getDefaultSharedPreferences(
+                                    requireContext()
+                            );
+
+            String uriString =
+                    prefs.getString(
+                            "shortcuts_export_path_uri",
+                            null
+                    );
+
+            File directory;
+
+            if (uriString != null) {
+
+                Uri uri =
+                        Uri.parse(uriString);
+
+                DocumentFile document =
+                        DocumentFile.fromTreeUri(
+                                requireContext(),
+                                uri
+                        );
+
+                if (document == null ||
+                        !document.canWrite()) {
+
+                    return;
+                }
+
+                directory =
+                        new File(
+                                FileUtils.getFilePathFromUri(
+                                        requireContext(),
+                                        uri
+                                )
+                        );
+
+            } else {
+
+                directory =
+                        new File(
+                                SettingsFragment
+                                        .DEFAULT_SHORTCUT_EXPORT_PATH
+                        );
+            }
+
+            if (!directory.exists() &&
+                    !directory.mkdirs()) {
+
+                return;
+            }
+
+            File output =
+                    new File(
+                            directory,
+                            shortcut.file.getName()
+                    );
 
             try {
-                List<String> lines = new ArrayList<>();
-                try (BufferedReader reader = new BufferedReader(new FileReader(shortcut.file))) {
+
+                List<String> lines =
+                        new ArrayList<>();
+
+                boolean found = false;
+
+                try (BufferedReader reader =
+                             new BufferedReader(
+                                     new FileReader(
+                                             shortcut.file
+                                     )
+                             )) {
+
                     String line;
-                    while ((line = reader.readLine()) != null) {
-                        if (line.startsWith("container_id:")) {
-                            lines.add("container_id:" + shortcut.container.id);
-                            containerIdFound = true;
-                        } else lines.add(line);
+
+                    while ((line =
+                            reader.readLine()) != null) {
+
+                        if (line.startsWith(
+                                "container_id:"
+                        )) {
+
+                            lines.add(
+                                    "container_id:"
+                                            + shortcut.container.id
+                            );
+
+                            found = true;
+
+                        } else {
+
+                            lines.add(line);
+                        }
                     }
                 }
-                if (!containerIdFound) lines.add("container_id:" + shortcut.container.id);
-                try (FileWriter writer = new FileWriter(exportFile, false)) {
-                    for (String line : lines) writer.write(line + "\n");
-                    writer.flush();
+
+                if (!found) {
+
+                    lines.add(
+                            "container_id:"
+                                    + shortcut.container.id
+                    );
                 }
-                Toast.makeText(getContext(), exportFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
-            } catch (IOException e) {}
+
+                try (FileWriter writer =
+                             new FileWriter(
+                                     output,
+                                     false
+                             )) {
+
+                    for (String line : lines) {
+
+                        writer.write(
+                                line + "\n"
+                        );
+                    }
+                }
+
+                Toast.makeText(
+                        requireContext(),
+                        output.getAbsolutePath(),
+                        Toast.LENGTH_LONG
+                ).show();
+
+            } catch (IOException e) {
+
+                Log.e(
+                        TAG,
+                        "Export error",
+                        e
+                );
+            }
         }
     }
 
-    private ShortcutInfo buildScreenShortCut(String shortLabel, String longLabel, int containerId, String shortcutPath, Icon icon, String uuid) {
-        Intent intent = new Intent(getActivity(), XServerDisplayActivity.class);
-        intent.setAction(Intent.ACTION_VIEW);
-        intent.putExtra("container_id", containerId);
-        intent.putExtra("shortcut_path", shortcutPath);
-        return new ShortcutInfo.Builder(getActivity(), uuid)
+    private ShortcutInfo buildScreenShortCut(
+            String shortLabel,
+            String longLabel,
+            int containerId,
+            String shortcutPath,
+            Icon icon,
+            String uuid) {
+
+        Intent intent =
+                new Intent(
+                        requireContext(),
+                        XServerDisplayActivity.class
+                );
+
+        intent.setAction(
+                Intent.ACTION_VIEW
+        );
+
+        intent.putExtra(
+                "container_id",
+                containerId
+        );
+
+        intent.putExtra(
+                "shortcut_path",
+                shortcutPath
+        );
+
+        return new ShortcutInfo.Builder(
+                requireContext(),
+                uuid
+        )
                 .setShortLabel(shortLabel)
                 .setLongLabel(longLabel)
                 .setIcon(icon)
@@ -661,36 +1594,159 @@ public class ShortcutsFragment extends Fragment {
                 .build();
     }
 
-    private void addShortcutToScreen(Shortcut shortcut) {
-        ShortcutManager shortcutManager = getSystemService(requireContext(), ShortcutManager.class);
-        if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported()) {
-            File iconDir = getImagesDir(false);
-            File imgFile = new File(iconDir, FileUtils.getBasename(shortcut.file.getPath()) + ".png");
-            Bitmap bmp = imgFile.exists() ? BitmapFactory.decodeFile(imgFile.getPath()) : shortcut.icon;
-            if (bmp == null) bmp = BitmapFactory.decodeResource(getResources(), R.drawable.icon_wine);
-            
-            shortcutManager.requestPinShortcut(buildScreenShortCut(shortcut.name, shortcut.name, shortcut.container.id,
-                    shortcut.file.getPath(), Icon.createWithBitmap(bmp), shortcut.getExtra("uuid")), null);
+    private void addShortcutToScreen(
+            Shortcut shortcut) {
+
+        if (Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.O) {
+
+            return;
+        }
+
+        ShortcutManager manager =
+                getSystemService(
+                        requireContext(),
+                        ShortcutManager.class
+                );
+
+        if (manager == null ||
+                !manager.isRequestPinShortcutSupported()) {
+
+            return;
+        }
+
+        File iconFile =
+                new File(
+                        getImagesDir(false),
+                        FileUtils.getBasename(
+                                shortcut.file.getPath()
+                        ) + ".png"
+                );
+
+        Bitmap bitmap =
+                iconFile.exists()
+                        ? BitmapFactory.decodeFile(
+                                iconFile.getPath()
+                        )
+                        : shortcut.icon;
+
+        if (bitmap == null) {
+
+            bitmap =
+                    BitmapFactory.decodeResource(
+                            getResources(),
+                            R.drawable.icon_wine
+                    );
+        }
+
+        manager.requestPinShortcut(
+                buildScreenShortCut(
+                        shortcut.name,
+                        shortcut.name,
+                        shortcut.container.id,
+                        shortcut.file.getPath(),
+                        Icon.createWithBitmap(bitmap),
+                        shortcut.getExtra("uuid")
+                ),
+                null
+        );
+    }
+
+    public static void disableShortcutOnScreen(
+            Context context,
+            Shortcut shortcut) {
+
+        if (Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.O) {
+
+            return;
+        }
+
+        try {
+
+            ShortcutManager manager =
+                    getSystemService(
+                            context,
+                            ShortcutManager.class
+                    );
+
+            if (manager != null) {
+
+                manager.disableShortcuts(
+                        Collections.singletonList(
+                                shortcut.getExtra("uuid")
+                        ),
+                        context.getString(
+                                R.string.shortcut_not_available
+                        )
+                );
+            }
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Disable shortcut error",
+                    e
+            );
         }
     }
 
-    public static void disableShortcutOnScreen(Context context, Shortcut shortcut) {
-        ShortcutManager shortcutManager = getSystemService(context, ShortcutManager.class);
-        try {
-            shortcutManager.disableShortcuts(Collections.singletonList(shortcut.getExtra("uuid")), context.getString(R.string.shortcut_not_available));
-        } catch (Exception e) {}
-    }
+    public void updateShortcutOnScreen(
+            String shortLabel,
+            String longLabel,
+            int containerId,
+            String shortcutPath,
+            Icon icon,
+            String uuid) {
 
-    public void updateShortcutOnScreen(String shortLabel, String longLabel, int containerId, String shortcutPath, Icon icon, String uuid) {
-        ShortcutManager shortcutManager = getSystemService(requireContext(), ShortcutManager.class);
+        if (Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.O) {
+
+            return;
+        }
+
         try {
-            for (ShortcutInfo shortcutInfo : shortcutManager.getPinnedShortcuts()) {
-                if (shortcutInfo.getId().equals(uuid)) {
-                    shortcutManager.updateShortcuts(Collections.singletonList(
-                            buildScreenShortCut(shortLabel, longLabel, containerId, shortcutPath, icon, uuid)));
+
+            ShortcutManager manager =
+                    getSystemService(
+                            requireContext(),
+                            ShortcutManager.class
+                    );
+
+            if (manager == null) {
+                return;
+            }
+
+            for (ShortcutInfo info :
+                    manager.getPinnedShortcuts()) {
+
+                if (info.getId().equals(uuid)) {
+
+                    manager.updateShortcuts(
+                            Collections.singletonList(
+                                    buildScreenShortCut(
+                                            shortLabel,
+                                            longLabel,
+                                            containerId,
+                                            shortcutPath,
+                                            icon,
+                                            uuid
+                                    )
+                            )
+                    );
+
                     break;
                 }
             }
-        } catch (Exception e) {}
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Update shortcut error",
+                    e
+            );
+        }
     }
-}
+            }
